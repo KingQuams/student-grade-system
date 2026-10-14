@@ -1,0 +1,520 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Gradebook</title>
+<style>
+/* Layout: a bound ledger — a fixed left spine of ruled index tabs,
+   a right page of ruled rows that fills with students as they're added.
+   Each row numbered like an accounting ledger; arrays are literally
+   the rows of the book. */
+:root {
+  --paper: #eef1e9;
+  --paper-line: #c7cdbb;
+  --ink: #23301f;
+  --ink-soft: #5b6854;
+  --spine: #27392b;
+  --accent: #8a5a2b;
+  --good: #3f7d4a;
+  --warn: #a17a1f;
+  --bad: #a1402f;
+  --card: #f7f8f2;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-body: 'IBM Plex Sans', -apple-system, Segoe UI, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1b2118;
+    --paper-line: #343d2e;
+    --ink: #e7e9df;
+    --ink-soft: #a7af9c;
+    --spine: #0f140e;
+    --accent: #c99456;
+    --good: #6fbf7a;
+    --warn: #d6ac4a;
+    --bad: #e2715c;
+    --card: #222a1d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1b2118;
+  --paper-line: #343d2e;
+  --ink: #e7e9df;
+  --ink-soft: #a7af9c;
+  --spine: #0f140e;
+  --accent: #c99456;
+  --good: #6fbf7a;
+  --warn: #d6ac4a;
+  --bad: #e2715c;
+  --card: #222a1d;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  margin: 0;
+  padding-inline: 16px;
+}
+
+.app {
+  max-width: 920px;
+  margin: 0 auto;
+  padding-block: 28px 56px;
+}
+
+header.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 3px double var(--ink-soft);
+  padding-bottom: 14px;
+  margin-bottom: 22px;
+}
+header.masthead h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(28px, 5vw, 40px);
+  margin: 0;
+  text-wrap: balance;
+  letter-spacing: 0.3px;
+}
+header.masthead .sub {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+@media (min-width: 720px) {
+  .layout { grid-template-columns: 300px minmax(0, 1fr); align-items: start; }
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-radius: 4px;
+  padding: 18px;
+}
+
+.card h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.card .hint {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-soft);
+}
+.field input {
+  font-family: var(--font-mono);
+  font-size: 14.5px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--paper-line);
+  border-radius: 3px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+.field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.score-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.score-row input { width: 64px; flex: 1 1 64px; min-width: 0; }
+
+button {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14px;
+  border: 1px solid var(--spine);
+  background: var(--spine);
+  color: var(--paper);
+  border-radius: 3px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+button:hover { opacity: 0.92; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--paper-line);
+}
+button.add-score {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--accent);
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.error-text { color: var(--bad); font-size: 12.5px; min-height: 16px; margin-top: 2px; }
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+}
+.stat-tile {
+  border: 1px solid var(--paper-line);
+  border-radius: 4px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+.stat-tile .label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-soft);
+}
+.stat-tile .value {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.stat-tile.high .value { color: var(--good); }
+.stat-tile.low .value { color: var(--bad); }
+
+.ledger-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.ledger-head h2 { margin: 0; }
+#search {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--paper-line);
+  border-radius: 3px;
+  padding: 7px 10px;
+  min-width: 0;
+  width: 180px;
+  max-width: 100%;
+}
+
+.ledger-wrap { overflow-x: auto; }
+table.ledger {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+table.ledger th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  border-bottom: 2px solid var(--ink-soft);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+table.ledger td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--paper-line);
+  vertical-align: top;
+}
+table.ledger tr:last-child td { border-bottom: none; }
+td.col-row { font-family: var(--font-mono); color: var(--ink-soft); width: 1%; }
+td.col-id { font-family: var(--font-mono); }
+td.col-scores { font-family: var(--font-mono); color: var(--ink-soft); font-size: 12.5px; }
+td.col-avg { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.badge.high { background: color-mix(in srgb, var(--good) 20%, transparent); color: var(--good); }
+.badge.low { background: color-mix(in srgb, var(--bad) 20%, transparent); color: var(--bad); }
+
+.empty {
+  padding: 28px 10px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+}
+
+.note {
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  border-top: 1px dashed var(--paper-line);
+  padding-top: 12px;
+}
+.note code {
+  font-family: var(--font-mono);
+  background: var(--paper);
+  border: 1px solid var(--paper-line);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<div class="app">
+  <header class="masthead">
+    <h1>Gradebook</h1>
+    <span class="sub">Array-backed student roster</span>
+  </header>
+
+  <div class="layout">
+    <section class="card" aria-labelledby="add-h">
+      <h2 id="add-h">Add a student</h2>
+      <p class="hint">Stored in a fixed-size array of records, same as a ledger's next free row.</p>
+
+      <form id="addForm" novalidate>
+        <div class="field">
+          <label for="nameInput">Name</label>
+          <input id="nameInput" type="text" autocomplete="off" placeholder="e.g. Ama Boateng" />
+        </div>
+        <div class="field">
+          <label for="idInput">Student ID</label>
+          <input id="idInput" type="text" autocomplete="off" placeholder="e.g. UG00123" />
+        </div>
+        <div class="field">
+          <label>Scores</label>
+          <div class="score-row" id="scoreRow">
+            <input type="number" class="scoreInput" inputmode="decimal" placeholder="0-100" />
+            <input type="number" class="scoreInput" inputmode="decimal" placeholder="0-100" />
+          </div>
+          <div style="margin-top:6px">
+            <button type="button" class="add-score" id="addScoreBtn">+ Add score</button>
+          </div>
+        </div>
+        <div class="error-text" id="errorText"></div>
+        <button type="submit">Add to roster</button>
+      </form>
+
+      <div class="stats" id="statsPanel" hidden>
+        <div class="stat-tile high">
+          <div class="label">Highest average</div>
+          <div class="value" id="highVal">—</div>
+        </div>
+        <div class="stat-tile low">
+          <div class="label">Lowest average</div>
+          <div class="value" id="lowVal">—</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="ledger-h">
+      <div class="ledger-head">
+        <h2 id="ledger-h">Roster</h2>
+        <input id="search" type="text" placeholder="Search by name…" />
+      </div>
+      <div class="ledger-wrap">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Scores</th>
+              <th style="text-align:right">Average</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerBody"></tbody>
+        </table>
+        <div class="empty" id="emptyState">No students yet — add the first row.</div>
+      </div>
+
+      <p class="note">
+        Every row lives in one JavaScript array, <code>students[]</code>, indexed 0 to
+        <code>students.length - 1</code>; each entry's <code>scores[]</code> array is
+        averaged with a single pass, the same O(n) scan used to find the roster's
+        highest and lowest performer.
+      </p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // The array of records — the whole assignment hinges on this line.
+  var students = [];
+
+  var form = document.getElementById("addForm");
+  var nameInput = document.getElementById("nameInput");
+  var idInput = document.getElementById("idInput");
+  var scoreRow = document.getElementById("scoreRow");
+  var addScoreBtn = document.getElementById("addScoreBtn");
+  var errorText = document.getElementById("errorText");
+  var ledgerBody = document.getElementById("ledgerBody");
+  var emptyState = document.getElementById("emptyState");
+  var searchInput = document.getElementById("search");
+  var statsPanel = document.getElementById("statsPanel");
+  var highVal = document.getElementById("highVal");
+  var lowVal = document.getElementById("lowVal");
+
+  var MAX_SCORES = 8;
+
+  function average(scores) {
+    if (scores.length === 0) return 0;
+    var sum = 0;
+    for (var i = 0; i < scores.length; i++) sum += scores[i];
+    return sum / scores.length;
+  }
+
+  function findHighLow() {
+    if (students.length === 0) return null;
+    var highIdx = 0, lowIdx = 0;
+    var highAvg = average(students[0].scores);
+    var lowAvg = highAvg;
+    for (var i = 1; i < students.length; i++) {
+      var avg = average(students[i].scores);
+      if (avg > highAvg) { highAvg = avg; highIdx = i; }
+      if (avg < lowAvg) { lowAvg = avg; lowIdx = i; }
+    }
+    return { highIdx: highIdx, lowIdx: lowIdx, highAvg: highAvg, lowAvg: lowAvg };
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function render() {
+    var query = searchInput.value.trim().toLowerCase();
+    var bounds = findHighLow();
+
+    ledgerBody.innerHTML = "";
+    var visibleCount = 0;
+
+    for (var i = 0; i < students.length; i++) {
+      var s = students[i];
+      if (query && s.name.toLowerCase().indexOf(query) === -1) continue;
+      visibleCount++;
+
+      var avg = average(s.scores);
+      var tr = document.createElement("tr");
+
+      var badge = "";
+      if (bounds && students.length > 1) {
+        if (i === bounds.highIdx) badge = '<span class="badge high">HIGH</span>';
+        else if (i === bounds.lowIdx) badge = '<span class="badge low">LOW</span>';
+      }
+
+      tr.innerHTML =
+        '<td class="col-row">' + (i + 1) + '</td>' +
+        '<td class="col-id">' + escapeHtml(s.id) + '</td>' +
+        '<td>' + escapeHtml(s.name) + badge + '</td>' +
+        '<td class="col-scores">' + s.scores.join(", ") + '</td>' +
+        '<td class="col-avg">' + avg.toFixed(2) + '</td>';
+      ledgerBody.appendChild(tr);
+    }
+
+    emptyState.hidden = visibleCount > 0;
+    emptyState.textContent = students.length === 0
+      ? "No students yet — add the first row."
+      : "No name matches “" + searchInput.value + "”.";
+
+    if (bounds && students.length > 1) {
+      statsPanel.hidden = false;
+      highVal.textContent = students[bounds.highIdx].name + "  (" + bounds.highAvg.toFixed(2) + ")";
+      lowVal.textContent = students[bounds.lowIdx].name + "  (" + bounds.lowAvg.toFixed(2) + ")";
+    } else {
+      statsPanel.hidden = true;
+    }
+  }
+
+  addScoreBtn.addEventListener("click", function () {
+    var count = scoreRow.querySelectorAll(".scoreInput").length;
+    if (count >= MAX_SCORES) return;
+    var input = document.createElement("input");
+    input.type = "number";
+    input.className = "scoreInput";
+    input.inputMode = "decimal";
+    input.placeholder = "0-100";
+    scoreRow.appendChild(input);
+  });
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    errorText.textContent = "";
+
+    var name = nameInput.value.trim();
+    var id = idInput.value.trim();
+    if (!name || !id) {
+      errorText.textContent = "Enter both a name and a student ID.";
+      return;
+    }
+
+    var scoreInputs = scoreRow.querySelectorAll(".scoreInput");
+    var scores = [];
+    for (var i = 0; i < scoreInputs.length; i++) {
+      var raw = scoreInputs[i].value.trim();
+      if (raw === "") continue;
+      var n = Number(raw);
+      if (isNaN(n)) {
+        errorText.textContent = "Scores must be numbers.";
+        return;
+      }
+      scores.push(n);
+    }
+    if (scores.length === 0) {
+      errorText.textContent = "Enter at least one score.";
+      return;
+    }
+
+    students.push({ id: id, name: name, scores: scores });
+
+    form.reset();
+    while (scoreRow.querySelectorAll(".scoreInput").length > 2) {
+      scoreRow.removeChild(scoreRow.lastElementChild);
+    }
+    nameInput.focus();
+    render();
+  });
+
+  searchInput.addEventListener("input", render);
+
+  // Opening state: a few example rows so the ledger isn't empty on load.
+  students.push({ id: "UG00118", name: "Ama Boateng", scores: [78, 82, 91] });
+  students.push({ id: "UG00124", name: "Kwame Owusu", scores: [55, 61, 49] });
+  students.push({ id: "UG00131", name: "Linda Mensah", scores: [88, 93, 90] });
+
+  render();
+})();
+</script>
+
+</body></html>
